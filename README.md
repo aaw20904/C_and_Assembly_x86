@@ -1,4 +1,5 @@
 # C_and_Assembly_x86
+This program used for filtering audio file. I assigned here the coefficients for a 3rd-order Butterworth 1000Hz low-pass filter.  
 Make a program in the C  programming language with a library written in the NASM assembler. 
 To create the project, compile the assembly file firsly. The command for it:
     nasm -f win32 filter.asm -o filter.obj
