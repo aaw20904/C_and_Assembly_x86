@@ -8,7 +8,7 @@
 #include <inttypes.h>
 FILE* srcFile;
 FILE* destFile;
-const CHUNKSIZE = 128000;
+const CHUNKSIZE = 65535;
 typedef struct {
     // RIFF Header
     char     chunkID[4];     // "RIFF"
@@ -75,7 +75,7 @@ int main (int argc, char *argv[]) {
 	//4) processing whole data chunks
 		for (int a=0; a < number_of_pieces; a++) { 
 			//a) read a chunk (16bit int) into the 16-bit buffer
-				fread(wavedata, CHUNKSIZE, 1, srcFile);
+				fread(wavedata, 2, CHUNKSIZE,  srcFile);
 			//b)converting it into 32bit integers
 				word_to_dword(wavedata, input_pcm, CHUNKSIZE);
 			//c)filtering
@@ -83,7 +83,7 @@ int main (int argc, char *argv[]) {
 			//d)Converting back to 16bit PCM
 				dword_to_word(output_pcm, wavedata, CHUNKSIZE);
 			//e)write filtered data into another new file
-				fwrite(wavedata, CHUNKSIZE, 1, destFile );
+				fwrite(wavedata, 2, CHUNKSIZE,  destFile );
 		}
 	//5) Processing a remainder:
 	     if (remainder > 0) {		 
