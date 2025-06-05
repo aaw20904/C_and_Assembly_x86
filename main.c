@@ -8,7 +8,7 @@
 #include <inttypes.h>
 FILE* srcFile;
 FILE* destFile;
-const CHUNKSIZE = 65535;
+const CHUNKSIZE = 65535;  //NOTE:  number of SAMPLES
 typedef struct {
     // RIFF Header
     char     chunkID[4];     // "RIFF"
