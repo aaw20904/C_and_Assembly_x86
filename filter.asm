@@ -29,7 +29,7 @@ section .text
     global _filter_proc, _word_to_dword, _dword_to_word
 
 _filter_proc:
-     ; C++ call in C program:   filter_proc(uint_32t src_addr, desat_addr, amount_of_data)
+     ;  call in C program so:   filter_proc(uint_32t src_addr, desat_addr, amount_of_data)
       push ebp
       mov ebp, esp
       %define src_addr  [ebp+8]  ;source array
@@ -103,7 +103,7 @@ one_sample_iteration:
 
     ;-----extends 16 to 32bit
 _word_to_dword:
-        ; C++ call in C program:   word_to_dword(uint_32t src_addr, desat_addr, amount_of_data)
+        ;   call in C program so:   word_to_dword(uint_32t src_addr, desat_addr, amount_of_data)
       push ebp
       mov ebp, esp
       %define src_addr1  [ebp+8]   ;source array (16bit)
@@ -125,7 +125,7 @@ innerLoop_w_to_d:
 ;--truncate 32bit to 16bit
    
 _dword_to_word:
-        ; C++ call in C program:   dword_to_word(uint_32t src_addr, desat_addr, amount_of_data)
+        ;   call in C program so:   dword_to_word(uint_32t src_addr, desat_addr, amount_of_data)
       push ebp
       mov ebp, esp
       %define src_addr2  [ebp+8]   ;source array (16bit)
