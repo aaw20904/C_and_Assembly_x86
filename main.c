@@ -8,11 +8,11 @@
 #include <inttypes.h>
 FILE* srcFile;
 FILE* destFile;
-const CHUNKSIZE = 65535;  //NOTE:  number of SAMPLES
+const READ_BUFF_SIZE = 65536; //must divided by 16 without remainder!
 typedef struct {
     // RIFF Header
     char     chunkID[4];     // "RIFF"
-    uint32_t chunkSize;      // 4 + (8 + Subchunk1Size) + (8 + Subchunk2Size)
+    uint32_t READ_BUFF_SIZE;      // 4 + (8 + Subchunk1Size) + (8 + Subchunk2Size)
     char     format[4];      // "WAVE"
 
     // fmt subchunk
@@ -56,13 +56,13 @@ int main (int argc, char *argv[]) {
 	//1)read audio header
 	   fread(&audioHeader,44,1,srcFile);
 	//2) how many pieces needs to process all the file?
-    	number_of_pieces = audioHeader.subchunk2Size / CHUNKSIZE;
+    	number_of_pieces = audioHeader.subchunk2Size / READ_BUFF_SIZE;
 	//3) remainder 
-	   remainder =  audioHeader.subchunk2Size % CHUNKSIZE;
+	   remainder =  audioHeader.subchunk2Size % READ_BUFF_SIZE;
 	//allocate memory
-	    input_pcm = malloc(CHUNKSIZE*4);
-        output_pcm = malloc(CHUNKSIZE*4);
-        wavedata = malloc(CHUNKSIZE*2);
+	    input_pcm = malloc(READ_BUFF_SIZE*4); //dwords
+        output_pcm = malloc(READ_BUFF_SIZE*4); //dwords 
+        wavedata = malloc(READ_BUFF_SIZE*2); //words
      //creae a new file
 	     destFile = fopen("out.wav","wb");
 	     if(destFile == NULL){
@@ -75,26 +75,26 @@ int main (int argc, char *argv[]) {
 	//4) processing whole data chunks
 		for (int a=0; a < number_of_pieces; a++) { 
 			//a) read a chunk (16bit int) into the 16-bit buffer
-				fread(wavedata, 2, CHUNKSIZE,  srcFile);
+				fread(wavedata, 1, READ_BUFF_SIZE,  srcFile);
 			//b)converting it into 32bit integers
-				word_to_dword(wavedata, input_pcm, CHUNKSIZE);
+				word_to_dword(wavedata, input_pcm, (READ_BUFF_SIZE>>1)); //amount of words
 			//c)filtering
-				filter_proc(input_pcm, output_pcm, CHUNKSIZE);
+				filter_proc(input_pcm, output_pcm, (READ_BUFF_SIZE>>1)); 
 			//d)Converting back to 16bit PCM
-				dword_to_word(output_pcm, wavedata, CHUNKSIZE);
+				dword_to_word(output_pcm, wavedata, (READ_BUFF_SIZE>>1));
 			//e)write filtered data into another new file
-				fwrite(wavedata, 2, CHUNKSIZE,  destFile );
+				fwrite(wavedata, 1, READ_BUFF_SIZE,  destFile );
 		}
 	//5) Processing a remainder:
 	     if (remainder > 0) {		 
 	        //5.1) read a chunk (16bit int) into the 16-bit buffer
 				fread(wavedata, remainder, 1, srcFile);
 			//5.2)converting it into 32bit integers
-				word_to_dword(wavedata, input_pcm, remainder);
+				word_to_dword(wavedata, input_pcm, remainder>>1);
 			//5.3)filtering
-				filter_proc(input_pcm, output_pcm, remainder);
+				filter_proc(input_pcm, output_pcm, remainder>>1);
 			//5.4)Converting back to 16bit PCM
-				dword_to_word(output_pcm, wavedata, remainder);
+				dword_to_word(output_pcm, wavedata, remainder>>1);
 			//5.5)write filtered data into another new file
 				fwrite(wavedata, remainder, 1, destFile );
 	    }
