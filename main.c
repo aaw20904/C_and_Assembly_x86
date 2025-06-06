@@ -9,6 +9,7 @@
 FILE* srcFile;
 FILE* destFile;
 const READ_BUFF_SIZE = 65536; //must divided by 16 without remainder!
+                              //without it you have white noise or spikes in each buffer
 typedef struct {
     // RIFF Header
     char     chunkID[4];     // "RIFF"
