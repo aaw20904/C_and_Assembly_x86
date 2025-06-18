@@ -26,7 +26,7 @@ section .data
     b_constants dd 0.0, 2.68615740, -2.41965511, 0.73016535  ;output coefs
 
 section .text
-    global _filter_proc, _word_to_dword, _dword_to_word
+    global _filter_proc, _word_to_dword, _dword_to_word, _cic16ord2
 
 _filter_proc:
      ;  call in C program so:   filter_proc(uint_32t src_addr, desat_addr, amount_of_data)
@@ -143,3 +143,6 @@ innerLoop_d_to_w:
       loop innerLoop_d_to_w  
       pop ebp
       ret
+
+ _cic16ord2:
+     ret
