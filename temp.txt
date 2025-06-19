@@ -1,0 +1,22 @@
+Can you write a procedure of CIC filter in NASM assembly for x86?
+global variables description.
+comb1Ptr, comb2Ptr : pointers to "circular" arrays (16 bytes).
+acc1, acc2; accumulators.
+local variable: resultValue.
+Parameters (C style passing through stack) are: inputP (pointer to input data block), outputP (pointer to output data block), lenght (length of block).
+Place inputP into ESI, outputP into EDI. 
+1) Allocate a local variable. Use EBP as a base pointer, save origial content before.
+2) Load an input sample by ESI.During execution, you can increase this pointer each iteration of the loop.
+3)Add   input value to the acc1. Save result in acc1.Then  add acc1 to acc2, save result in acc2.
+4)comb1. Read data by a pointer comb1Ptr. Subtract  acc2-[comb1Ptr], save a result by the pointer comb1Ptr, and in "resultValue".
+5) Increment comb1Ptr (by 4) and checking: has the value acheived array`s border? I mean pointer should be less that (start_address+64), 
+in case of 16cells of comb delay line-array.When a pointer exceed border - wrap it to the zero cell`s address.
+6). Subtract resultValue-[comb2Ptr].Save 
+ a result by comb2Ptr pointer.
+7)Move a result in resultValue.
+8)Increment comb2Ptr by 4 (bytes)
+9)Checking - is comb2Ptr more that last cell`s address?When yes - wrap the pointer around to the first cell address.
+10)Save a filter`s output sample by EDI.
+11)use for iterating LOOP instruction , place "lenght" input parameter in ECX, increment ESI, EDI after each iteration
+12)Restore EBP and ESP (because of local variable "resultValue").
+Have you any questions for me?
