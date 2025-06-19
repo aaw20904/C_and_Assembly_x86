@@ -20,3 +20,104 @@ in case of 16cells of comb delay line-array.When a pointer exceed border - wrap 
 11)use for iterating LOOP instruction , place "lenght" input parameter in ECX, increment ESI, EDI after each iteration
 12)Restore EBP and ESP (because of local variable "resultValue").
 Have you any questions for me?
+
+section .text
+global cic_filter
+
+; Function prototype:
+; void cic_filter(int32_t *inputP, int32_t *outputP, int length);
+
+%define inputP       [ebp + 8]
+%define outputP      [ebp + 12]
+%define length       [ebp + 16]
+%define resultValue  [ebp - 4]
+
+cic_filter:
+    push    ebp
+    mov     ebp, esp
+    sub     esp, 4                      ; reserve space for resultValue
+
+    push    esi
+    push    edi
+    push    ebx
+
+    ; Load parameters
+    mov     esi, inputP                ; input pointer
+    mov     edi, outputP               ; output pointer
+    mov     ecx, length                ; loop counter
+
+    ; Load persistent state
+    mov     eax, [acc1]                ; EAX = acc1
+    mov     ebx, [acc2]                ; EBX = acc2
+    mov     edx, [comb1Ptr]            ; EDX = comb1Ptr
+    mov     esi_c2, [comb2Ptr]         ; use ESI_C2 as comb2Ptr
+
+    ; Load base addresses and calculate borders
+    lea     ebp1, [comb1Array]
+    mov     comb1Border, ebp1
+    add     comb1Border, 64
+
+    lea     ebp2, [comb2Array]
+    mov     comb2Border, ebp2
+    add     comb2Border, 64
+
+.loop:
+    ; 1. Load input sample (signed 32-bit)
+    mov     edx_in, [esi]
+    add     eax, edx_in                ; acc1 += input
+    mov     [acc1], eax
+
+    add     ebx, eax                   ; acc2 += acc1
+    mov     [acc2], ebx
+
+    ; 2. Comb stage 1
+    mov     edx_val, [edx]             ; old value from comb1Ptr
+    sub     ebx, edx_val               ; result = acc2 - old
+    mov     [edx], ebx                 ; store acc2 to comb1Ptr
+    mov     resultValue, ebx           ; save intermediate result
+
+    ; 3. Increment comb1Ptr and check wrap
+    add     edx, 4
+    cmp     edx, comb1Border
+    jb      .skip_wrap1
+    lea     edx, [comb1Array]
+.skip_wrap1:
+
+    ; 4. Comb stage 2
+    mov     eax_tmp, [esi_c2]          ; old value from comb2Ptr
+    mov     ebx_tmp, resultValue
+    sub     ebx_tmp, eax_tmp           ; result = resultValue - old
+    mov     [esi_c2], resultValue      ; store resultValue to comb2Ptr
+    mov     resultValue, ebx_tmp       ; save final result
+
+    ; 5. Increment comb2Ptr and check wrap
+    add     esi_c2, 4
+    cmp     esi_c2, comb2Border
+    jb      .skip_wrap2
+    lea     esi_c2, [comb2Array]
+.skip_wrap2:
+
+    ; 6. Store result to output
+    mov     eax, resultValue
+    mov     [edi], eax
+
+    ; 7. Advance input/output pointers
+    add     esi, 4
+    add     edi, 4
+
+    loop    .loop
+
+    ; Save final state
+    mov     [acc1], eax
+    mov     [acc2], ebx
+    mov     [comb1Ptr], edx
+    mov     [comb2Ptr], esi_c2
+
+    ; Restore
+    pop     ebx
+    pop     edi
+    pop     esi
+    mov     esp, ebp
+    pop     ebp
+    ret
+
