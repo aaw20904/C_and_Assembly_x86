@@ -25,6 +25,15 @@ section .data
     a_constants dd 0.00041655, 0.00124965, 0.00124965, 0.00041655 ;input coefs
     b_constants dd 0.0, 2.68615740, -2.41965511, 0.73016535  ;output coefs
 
+ ;--------------CIC---variables--begin
+     comb1Array resb 64  ;circular arrays 16 cells int32
+     comb2Array resb 64
+     comb1Ptr dd 0    ; a part of pointer (low 4 bits)
+     comb2Ptr dd 0
+     acc1 dd 0
+     acc2 dd 0
+     ;-----------------CIC--end----------
+
 section .text
     global _filter_proc, _word_to_dword, _dword_to_word, _cic16ord2
 
@@ -143,6 +152,72 @@ innerLoop_d_to_w:
       loop innerLoop_d_to_w  
       pop ebp
       ret
-
+;cic16ord2(uint_32t src_addr, desat_addr, amount_of_data)
  _cic16ord2:
-     ret
+  ;---C style call conversion
+  %define cicSrc [ebp+8]
+  %define cicDest [ebp+12]
+  %define cicLength [ebp+16]
+  %define resultValue [ebp-4]
+  %define array_size 256
+   ;[ebp] - return address
+  push ebp
+  mov ebp, esp
+  sub esp, 4 ;allocate local variable
+  ;load esi,edi,ecx. !!!! ECX reserved for loop
+  mov esi, cicSrc
+  mov edi, cicDest
+  mov ecx, cicLength
+  ;2)init pointers to circular arrays
+  
+cic_loop_start:
+  ;3) Add input data to the acc1, save result there.After this, do it: acc2=Acc1+acc2
+    mov eax, [esi] ;load input data from array
+    mov ebx, [acc1]
+    add eax, ebx      ;acc1+=input
+    mov [acc1], eax   ;save acc1
+    mov ebx, [acc2]
+    add eax, ebx      ;acc2+=acc1
+    mov [acc2], eax   ;save acc2
+  ;4)COMB1 Load data by comb1Ptr pointer, then sutract it from acc2.Save result by the comb1Ptr pointer
+    mov eax, comb1Array ;adress of first cell
+    mov ebx, [comb1Ptr] ;offset
+    add eax, ebx        ;address exectly
+    mov edx, eax        ;copy address
+    mov eax, [eax]      ;data of array`s item
+    mov ebx, [acc1]
+    sub ebx, eax  ;ebx=acc2-[comb1Ptr]
+    mov [edx], ebx ;save result by a pointer value into array
+    mov resultValue, ebx
+  ;5)Increment the pointer combPtr1, when it is more that zero_array_cell+64, wrap it back
+    mov ebx, [comb1Ptr]  ;offset of pointer
+    add ebx, 4  ;next cell
+    and ebx, 0x0000003f ;maximum value = 15, othervise wrap around
+    mov [comb1Ptr], ebx ;store offset of pointer
+  ;6)COMB2. subtract delayed value, loaded by comb2Ptr from resultValue.The result store again by the poiner
+    mov eax, comb2Array ;adress of first cell
+    mov ebx, [comb2Ptr] ;offset
+    add eax, ebx        ;address exectly
+    mov edx, eax        ;copy address
+    mov eax, [eax]      ;data of array`s item
+    mov ebx, [acc2]
+    sub ebx, eax  ;ebx=acc2-[comb1Ptr]
+    mov [edx], ebx ;save result by a pointer value into array
+    mov resultValue, ebx
+  ;7)Increment the pointer combPtr2, when it is more that zero_array_cell+64, wrap it back
+    mov ebx, [comb2Ptr]  ;offset of pointer
+    add ebx, 4  ;next cell
+    and ebx, 0x0000003f ;maximum value = 15, othervise wrap around
+    mov [comb2Ptr], ebx ;store offset of pointer
+    mov eax, resultValue
+    mov [edi], eax ;debug:save to ouput array
+    ;8)increment registers ESI EDI
+    add esi, 4
+    add edi, 4
+    dec ecx
+    jnz cic_loop_start
+    ;--restore stack
+    add esp, 4
+    pop ebp
+    ret
+  
