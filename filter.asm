@@ -210,7 +210,8 @@ cic_loop_start:
     and ebx, 0x0000003f ;maximum value = 15, othervise wrap around
     mov [comb2Ptr], ebx ;store offset of pointer
     mov eax, resultValue
-    mov [edi], eax ;debug:save to ouput array
+    sar eax, 8  ;normalize gain
+    mov [edi], eax ;save to ouput array
     ;8)increment registers ESI EDI
     add esi, 4
     add edi, 4
