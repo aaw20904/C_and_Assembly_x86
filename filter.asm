@@ -153,7 +153,7 @@ innerLoop_d_to_w:
       pop ebp
       ret
 ;cic16ord2(uint_32t src_addr, desat_addr, amount_of_data)
- _cic16ord2:
+_cic16ord2:
   ;---C style call conversion
   %define cicSrc [ebp+8]
   %define cicDest [ebp+12]
@@ -179,6 +179,7 @@ cic_loop_start:
     mov ebx, [acc2]
     add eax, ebx      ;acc2+=acc1
     mov [acc2], eax   ;save acc2
+         
   ;4)COMB1 Load data by comb1Ptr pointer, then sutract it from acc2.Save result by the comb1Ptr pointer
     mov eax, comb1Array ;adress of first cell
     mov ebx, [comb1Ptr] ;offset
@@ -188,12 +189,13 @@ cic_loop_start:
     mov ebx, [acc1]
     sub ebx, eax  ;ebx=acc2-[comb1Ptr]
     mov [edx], ebx ;save result by a pointer value into array
-    mov resultValue, ebx
+    mov [resultValueX], ebx
   ;5)Increment the pointer combPtr1, when it is more that zero_array_cell+64, wrap it back
     mov ebx, [comb1Ptr]  ;offset of pointer
     add ebx, 4  ;next cell
-    and ebx, 0x0000003f ;maximum value = 15, othervise wrap around
+    and ebx, 0x0000003f ;maximum value = 63 (16 dwords), othervise wrap around
     mov [comb1Ptr], ebx ;store offset of pointer
+     jmp dbg0001  ;debug - test first order
   ;6)COMB2. subtract delayed value, loaded by comb2Ptr from resultValue.The result store again by the poiner
     mov eax, comb2Array ;adress of first cell
     mov ebx, [comb2Ptr] ;offset
@@ -207,12 +209,16 @@ cic_loop_start:
   ;7)Increment the pointer combPtr2, when it is more that zero_array_cell+64, wrap it back
     mov ebx, [comb2Ptr]  ;offset of pointer
     add ebx, 4  ;next cell
-    and ebx, 0x0000003f ;maximum value = 15, othervise wrap around
+    and ebx, 0x0000003f ;maximum value = 63, othervise wrap around
     mov [comb2Ptr], ebx ;store offset of pointer
-    mov eax, resultValue
-    sar eax, 8  ;normalize gain
+    mov eax, [resultValueX]
+    sar eax, 20  ;normalize gain
     mov [edi], eax ;save to ouput array
     ;8)increment registers ESI EDI
+dbg0001:
+    mov eax, [resultValueX] ;dbg
+    sar eax, 4  ;dbg
+    mov [edi], eax
     add esi, 4
     add edi, 4
     dec ecx
