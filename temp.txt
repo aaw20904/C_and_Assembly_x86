@@ -1,4 +1,4 @@
-;to compile - use the folowing command:
+  ;to compile - use the folowing command:
   ; nasm -f win32 dbg.asm -o dbg.obj
   ;to link with MyLink - use the following command:
   ;   GoLink /entry main /console dbg.obj msvcrt.dll kernel32.dll
@@ -11,9 +11,9 @@ section .data
 
      fmt_int db "%d",10,0
      ;-----integer----coefs----
-     b0_01_coef dd 241  ;64/61   0.953327
-     b1_01_coef dd -241
-     a1_01_coef dd +226  ;64/58   0.906836
+     b0_01_coef dd 2  ;(x/64)*61
+     b1_01_coef dd 0
+     a1_01_coef dd -60   ;(x/64)*58
      b0_01_prod dd 0
      b1_01_prod dd 0
      a1_01_prod dd 0
@@ -28,7 +28,7 @@ section .text
   global main
   extern printf, scanf,puts, ExitProcess
 main:
-  mov eax, 0x0000000f
+  mov eax, 0x00007fff
   mov [filter_in], eax ;impulse
 
   mov eax, 512 ;length
@@ -80,16 +80,19 @@ mainloop001:
   ;1)load input n and multiply by b0
   mov eax, [esi]   ;load x[n] (current sample)
   sal eax, 6       ;normalize << 8
-  imul dword [b0_01_coef]    ; edx:eax = b0*x[n],  (eax is low, edx is high)
+  sar eax , 6            ;a) divie by 64
+  imul dword [b0_01_coef]    ;b)multiply by coef (x/64) * a0
   mov [b0_01_prod], eax ;save low32bits product
 
   ;2)load input n-1 and multiply by b1
   mov eax, [in_prev] 
-  imul dword [b1_01_coef]    ; edx:eax = b1*x[n-1],  (eax is low, edx is high)
+  sar eax , 6            ;a) divie by 64
+  imul dword [b1_01_coef]    ;b)mult by coef edx:eax = b1*x[n-1],  (eax is low, edx is high)
   mov [b1_01_prod], eax     ;save product
 
   ;3)load output y [n-1] and multiply by a1
   mov eax, [out_prev]
+  sar eax , 6            ;a) divie by 64
   imul dword [a1_01_coef]    ; edx:eax = a1*y[n-1],  (eax is low, edx is high)
   mov [a1_01_prod], eax           ;save result
   ;4) b0*x[n] + b1*x[n]-a1*y[n-1]
@@ -114,3 +117,7 @@ mainloop001:
     add esp, 4
     pop ebp
  ret
+
+
+  
+ 
