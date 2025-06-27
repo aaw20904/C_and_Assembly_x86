@@ -1,123 +1,116 @@
-Can you write a procedure of CIC filter in NASM assembly for x86?
-global variables description.
-comb1Ptr, comb2Ptr : pointers to "circular" arrays (16 bytes).
-acc1, acc2; accumulators.
-local variable: resultValue.
-Parameters (C style passing through stack) are: inputP (pointer to input data block), outputP (pointer to output data block), lenght (length of block).
-Place inputP into ESI, outputP into EDI. 
-1) Allocate a local variable. Use EBP as a base pointer, save origial content before.
-2) Load an input sample by ESI.During execution, you can increase this pointer each iteration of the loop.
-3)Add   input value to the acc1. Save result in acc1.Then  add acc1 to acc2, save result in acc2.
-4)comb1. Read data by a pointer comb1Ptr. Subtract  acc2-[comb1Ptr], save a result by the pointer comb1Ptr, and in "resultValue".
-5) Increment comb1Ptr (by 4) and checking: has the value acheived array`s border? I mean pointer should be less that (start_address+64), 
-in case of 16cells of comb delay line-array.When a pointer exceed border - wrap it to the zero cell`s address.
-6). Subtract resultValue-[comb2Ptr].Save 
- a result by comb2Ptr pointer.
-7)Move a result in resultValue.
-8)Increment comb2Ptr by 4 (bytes)
-9)Checking - is comb2Ptr more that last cell`s address?When yes - wrap the pointer around to the first cell address.
-10)Save a filter`s output sample by EDI.
-11)use for iterating LOOP instruction , place "lenght" input parameter in ECX, increment ESI, EDI after each iteration
-12)Restore EBP and ESP (because of local variable "resultValue").
-Have you any questions for me?
+;to compile - use the folowing command:
+  ; nasm -f win32 dbg.asm -o dbg.obj
+  ;to link with MyLink - use the following command:
+  ;   GoLink /entry main /console dbg.obj msvcrt.dll kernel32.dll
+  %include "utils.asm"
+
+
+section .data
+     ; AES Key (must be 128 bits or 16 bytes)
+     align 16
+
+     fmt_int db "%d",10,0
+     ;-----integer----coefs----
+     b0_01_coef dd 241
+     b1_01_coef dd -241
+     a1_01_coef dd +226
+     b0_01_prod dd 0
+     b1_01_prod dd 0
+     a1_01_prod dd 0
+     out_prev resb 4
+     in_prev resb 4
+     ;--end-of_integer-coefs
+    filter_in resd 1025
+    filter_out resd 1025
+
 
 section .text
-global cic_filter
+  global main
+  extern printf, scanf,puts, ExitProcess
+main:
+  mov eax, 0x0000000f
+  mov [filter_in], eax ;impulse
 
-; Function prototype:
-; void cic_filter(int32_t *inputP, int32_t *outputP, int length);
+  mov eax, 512 ;length
+  push eax
+  mov eax, filter_out ;address 
+  push eax
+  mov eax, filter_in
+  push eax
+  call _integerBandpass
+  add esp, 12
 
-%define inputP       [ebp + 8]
-%define outputP      [ebp + 12]
-%define length       [ebp + 16]
-%define resultValue  [ebp - 4]
+  mov esi, filter_out
+  mov ecx, 256
+  
+x12345:
+  push ecx
+  push esi
+  push dword [esi]
+  push fmt_int
+  call printf
+  add esp, 8
+  pop esi
+  pop ecx
+  add esi, 4
+  loop x12345
 
-cic_filter:
-    push    ebp
-    mov     ebp, esp
-    sub     esp, 4                      ; reserve space for resultValue
+finally:
+  mov eax, 0
+  push eax
+  call ExitProcess
+  ret
 
-    push    esi
-    push    edi
-    push    ebx
+_integerBandpass:
+  ;---C style call conversion
+  %define x1Src [ebp+8]
+  %define x1Dest [ebp+12]
+  %define x1Length [ebp+16]
+  %define resultValue [ebp-4]
+  %define array_size 256
+   ;[ebp] - return address
+  push ebp
+  mov ebp, esp
+  sub esp, 4 ;allocate local variable
+  ;load esi,edi,ecx. !!!! ECX reserved for loop
+  mov esi, x1Src
+  mov edi, x1Dest
+  mov ecx, x1Length
+mainloop001:
+  ;1)load input n and multiply by b0
+  mov eax, [esi]   ;load x[n] (current sample)
+  sal eax, 6       ;normalize << 8
+  imul dword [b0_01_coef]    ; edx:eax = b0*x[n],  (eax is low, edx is high)
+  mov [b0_01_prod], eax ;save low32bits product
 
-    ; Load parameters
-    mov     esi, inputP                ; input pointer
-    mov     edi, outputP               ; output pointer
-    mov     ecx, length                ; loop counter
+  ;2)load input n-1 and multiply by b1
+  mov eax, [in_prev] 
+  imul dword [b1_01_coef]    ; edx:eax = b1*x[n-1],  (eax is low, edx is high)
+  mov [b1_01_prod], eax     ;save product
 
-    ; Load persistent state
-    mov     eax, [acc1]                ; EAX = acc1
-    mov     ebx, [acc2]                ; EBX = acc2
-    mov     edx, [comb1Ptr]            ; EDX = comb1Ptr
-    mov     esi_c2, [comb2Ptr]         ; use ESI_C2 as comb2Ptr
-
-    ; Load base addresses and calculate borders
-    lea     ebp1, [comb1Array]
-    mov     comb1Border, ebp1
-    add     comb1Border, 64
-
-    lea     ebp2, [comb2Array]
-    mov     comb2Border, ebp2
-    add     comb2Border, 64
-
-.loop:
-    ; 1. Load input sample (signed 32-bit)
-    mov     edx_in, [esi]
-    add     eax, edx_in                ; acc1 += input
-    mov     [acc1], eax
-
-    add     ebx, eax                   ; acc2 += acc1
-    mov     [acc2], ebx
-
-    ; 2. Comb stage 1
-    mov     edx_val, [edx]             ; old value from comb1Ptr
-    sub     ebx, edx_val               ; result = acc2 - old
-    mov     [edx], ebx                 ; store acc2 to comb1Ptr
-    mov     resultValue, ebx           ; save intermediate result
-
-    ; 3. Increment comb1Ptr and check wrap
-    add     edx, 4
-    cmp     edx, comb1Border
-    jb      .skip_wrap1
-    lea     edx, [comb1Array]
-.skip_wrap1:
-
-    ; 4. Comb stage 2
-    mov     eax_tmp, [esi_c2]          ; old value from comb2Ptr
-    mov     ebx_tmp, resultValue
-    sub     ebx_tmp, eax_tmp           ; result = resultValue - old
-    mov     [esi_c2], resultValue      ; store resultValue to comb2Ptr
-    mov     resultValue, ebx_tmp       ; save final result
-
-    ; 5. Increment comb2Ptr and check wrap
-    add     esi_c2, 4
-    cmp     esi_c2, comb2Border
-    jb      .skip_wrap2
-    lea     esi_c2, [comb2Array]
-.skip_wrap2:
-
-    ; 6. Store result to output
-    mov     eax, resultValue
-    mov     [edi], eax
-
-    ; 7. Advance input/output pointers
-    add     esi, 4
-    add     edi, 4
-
-    loop    .loop
-
-    ; Save final state
-    mov     [acc1], eax
-    mov     [acc2], ebx
-    mov     [comb1Ptr], edx
-    mov     [comb2Ptr], esi_c2
-
-    ; Restore
-    pop     ebx
-    pop     edi
-    pop     esi
-    mov     esp, ebp
-    pop     ebp
-    ret
-
+  ;3)load output y [n-1] and multiply by a1
+  mov eax, [out_prev]
+  imul dword [a1_01_coef]    ; edx:eax = a1*y[n-1],  (eax is low, edx is high)
+  mov [a1_01_prod], eax           ;save result
+  ;4) b0*x[n] + b1*x[n]-a1*y[n-1]
+  mov eax, [b0_01_prod]
+  add eax, [b1_01_prod]
+  sub eax, [a1_01_prod]
+  ;5)store current result as previous output sample y[n-1] 
+  mov [out_prev], eax
+  ;6) store input value as previous  input sample x[n-1]
+  mov eax , [esi]
+  mov [in_prev], eax 
+  ;7)  DEBUG load result in EAX
+  mov eax, [out_prev]
+  sar eax, 6 ;normalize   >> 8
+  mov [edi], eax
+  ;8) increment pointers
+  add esi, 4
+  add edi, 4
+  dec ecx
+  jnz mainloop001
+  ;--restore stack
+    add esp, 4
+    pop ebp
+ ret
