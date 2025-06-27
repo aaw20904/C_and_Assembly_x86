@@ -11,9 +11,9 @@ section .data
 
      fmt_int db "%d",10,0
      ;-----integer----coefs----
-     b0_01_coef dd 241
+     b0_01_coef dd 241  ;64/61   0.953327
      b1_01_coef dd -241
-     a1_01_coef dd +226
+     a1_01_coef dd +226  ;64/58   0.906836
      b0_01_prod dd 0
      b1_01_prod dd 0
      a1_01_prod dd 0
