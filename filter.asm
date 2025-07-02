@@ -36,6 +36,22 @@ section .data
     resultValueC1 dd 0
     resultValueC2 dd 0
      ;-----------------CIC--end----------
+     ;-----integer----coefs----bandpass 1000Hz, BW=1500
+     b0_01_coef dd  25      ;0.09688
+     b1_01_coef dd  -25      ;-0.09688
+     b2_01_coef dd  0      ;no
+     a1_01_coef dd  -458    ;1.788
+     a2_01_coef dd  206       ;-0.8062
+     b0_01_prod dd 0
+     b1_01_prod dd 0
+     b2_01_prod dd 0
+     a1_01_prod dd 0
+     a2_01_prod dd 0
+     out_prev_1 resb 4
+     out_prev_2 resb 4
+     in_prev_1 resb 4
+     in_prev_2 resb 4
+
 
 section .text
     global _filter_proc, _word_to_dword, _dword_to_word, _cic16ord2
@@ -229,3 +245,67 @@ cic_loop_start:
     add esp, 4
     pop ebp
     ret
+;_integerBandpass(uint_32t src_addr, desat_addr, amount_of_data)
+_integerBandpass:
+  ;---fixed point 24.8
+  ;---C style call conversion
+  %define x1Src [ebp+8]
+  %define x1Dest [ebp+12]
+  %define x1Length [ebp+16]
+  %define resultValue [ebp-4]
+  %define array_size 256
+   ;[ebp] - return address
+  push ebp
+  mov ebp, esp
+  sub esp, 4 ;allocate local variable
+  ;load esi,edi,ecx. !!!! ECX reserved for loop
+  mov esi, x1Src
+  mov edi, x1Dest
+  mov ecx, x1Length
+mainloop001:
+  ;1)load input n and multiply by b0
+  mov eax, [esi]   ;load x[n] (current sample)
+  sal eax, 8   ;converting to fixed point 24.8
+  imul dword [b0_01_coef]    ;b)multiply by coef (x/128) * a0 , so result is  edx(high),eax(low)
+  sar eax, 8  ;scale down after multiplying
+  mov [b0_01_prod], eax ;save low32bits product
+  ;2)load previous input
+  mov eax, [in_prev_1]
+  imul dword [b1_01_coef]    ;b)multiply by coef (x/128) * a0 , so result is  edx(high),eax(low)
+  sar eax, 8  ;scale down after multiplying
+  mov [b1_01_prod], eax ;save low32bits product
+  ;3)save input 
+  mov eax, [esi]
+  sal eax, 8 ;to 24.8 fixed point
+  mov [in_prev_1], eax
+  ;4)load output y [n-1] and multiply by a1
+  mov eax, [out_prev_1]
+  imul dword [a1_01_coef]    ; edx:eax = a1*y[n-1],  (eax is low, edx is high)
+  sar eax, 8  ;scale down after multiplying
+  mov [a1_01_prod], eax      ;save result
+  ;5)load output y[n-2] and multiply by a2
+  mov eax, [out_prev_2]
+  imul dword [a2_01_coef]    ; edx:eax = a1*y[n-1],  (eax is low, edx is high)
+  sar eax, 8  ;scale down after multiplying
+  mov [a2_01_prod], eax      ;save result
+  ;6)move Y[n-1] to Y[n-2]
+  mov eax , [out_prev_1]
+  mov [out_prev_2], eax
+  ;6) b0*x[n]+b1*x[n-1]-a1*y[n-1]-a2*y[n-2]
+  mov eax, [b0_01_prod]
+  add eax, [b1_01_prod]
+  sub eax, [a1_01_prod]
+  sub eax, [a2_01_prod]
+  ;7)store current result as previous output sample y[n-1] 
+  mov [out_prev_1], eax
+  sar eax, 8                 ;converting back to integer
+  mov [edi], eax             ;load in the output array
+  ;8) increment pointers
+  add esi, 4
+  add edi, 4
+  dec ecx
+  jnz mainloop001
+  ;--restore stack
+    add esp, 4
+    pop ebp
+ ret
