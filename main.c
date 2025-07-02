@@ -13,7 +13,7 @@ const READ_BUFF_SIZE = 65536; //must divided by 16 without remainder!
 typedef struct {
     // RIFF Header
     char     chunkID[4];     // "RIFF"
-    uint32_t READ_BUFF_SIZE;      // 4 + (8 + Subchunk1Size) + (8 + Subchunk2Size)
+   uint32_t chunkSize;      // 4 + (8 + subchunk1Size) + (8 + subchunk2Size)
     char     format[4];      // "WAVE"
 
     // fmt subchunk
@@ -42,8 +42,10 @@ WAVHeader audioHeader;
 extern filter_proc(unsigned int* src, unsigned int* dest, unsigned int amount_samples);
 extern word_to_dword( short int*, unsigned int*, unsigned int amount_samples);
 extern dword_to_word( unsigned int*, short int*, unsigned int amount_samples);
+extern cic16ord2( unsigned int*, short int*, unsigned int amount_samples);
+extern integerBandpass( unsigned int*, short int*, unsigned int amount_samples);
 
-
+ 
 int main (int argc, char *argv[]) {
 	if(argv[1]==NULL){
 		perror("File not found!Please Enter name as the first parameter in the command prompt!");
@@ -55,23 +57,26 @@ int main (int argc, char *argv[]) {
 		return 1;
 	}
 	//1)read audio header
-	   fread(&audioHeader,44,1,srcFile);
+	   fread(&audioHeader,sizeof(WAVHeader),1,srcFile);
 	//2) how many pieces needs to process all the file?
-    	number_of_pieces = audioHeader.subchunk2Size / READ_BUFF_SIZE;
+    	number_of_pieces = audioHeader.chunkSize / READ_BUFF_SIZE;
+    	printf("Size of header %d  \n", sizeof(WAVHeader));
+    	printf("pieces: %d, totaldata: %d \n", number_of_pieces,audioHeader.subchunk2Size);
 	//3) remainder 
-	   remainder =  audioHeader.subchunk2Size % READ_BUFF_SIZE;
+	   remainder = (audioHeader.chunkSize+8) - ( READ_BUFF_SIZE * number_of_pieces); // audioHeader.subchunk2Size % READ_BUFF_SIZE;
 	//allocate memory
 	    input_pcm = malloc(READ_BUFF_SIZE*4); //dwords
         output_pcm = malloc(READ_BUFF_SIZE*4); //dwords 
         wavedata = malloc(READ_BUFF_SIZE*2); //words
      //creae a new file
+     
 	     destFile = fopen("out.wav","wb");
 	     if(destFile == NULL){
 	     	perror("Can`t create file.");
 	     	return 1;
 		 }
      //write audio header
-       fwrite (&audioHeader,44,1,destFile);
+       fwrite (&audioHeader,sizeof(WAVHeader),1,destFile);
 
 	//4) processing whole data chunks
 		for (int a=0; a < number_of_pieces; a++) { 
@@ -80,24 +85,25 @@ int main (int argc, char *argv[]) {
 			//b)converting it into 32bit integers
 				word_to_dword(wavedata, input_pcm, (READ_BUFF_SIZE>>1)); //amount of words
 			//c)filtering
-				filter_proc(input_pcm, output_pcm, (READ_BUFF_SIZE>>1)); 
+		 integerBandpass(input_pcm, output_pcm, (READ_BUFF_SIZE>>1)); 
 			//d)Converting back to 16bit PCM
 				dword_to_word(output_pcm, wavedata, (READ_BUFF_SIZE>>1));
 			//e)write filtered data into another new file
 				fwrite(wavedata, 1, READ_BUFF_SIZE,  destFile );
 		}
+		printf("Remainder is %d \n", remainder);
 	//5) Processing a remainder:
 	     if (remainder > 0) {		 
 	        //5.1) read a chunk (16bit int) into the 16-bit buffer
-				fread(wavedata, remainder, 1, srcFile);
+				fread(wavedata, 1, remainder,  srcFile);
 			//5.2)converting it into 32bit integers
 				word_to_dword(wavedata, input_pcm, remainder>>1);
 			//5.3)filtering
-				filter_proc(input_pcm, output_pcm, remainder>>1);
+		 integerBandpass(input_pcm, output_pcm, remainder>>1);
 			//5.4)Converting back to 16bit PCM
 				dword_to_word(output_pcm, wavedata, remainder>>1);
 			//5.5)write filtered data into another new file
-				fwrite(wavedata, remainder, 1, destFile );
+				fwrite(wavedata, 1, remainder,  destFile );
 	    }
     
     
