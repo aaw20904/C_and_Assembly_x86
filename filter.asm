@@ -36,12 +36,13 @@ section .data
     resultValueC1 dd 0
     resultValueC2 dd 0
      ;-----------------CIC--end----------
-   ;format Q22.10
-     b0_01_coef dd  -21      ;0.02093
+     ;-----integer----coefs----bandpass 1102Hz, BW=200,  precision 0.01
+           ;format Q22.10
+     b0_01_coef dd  -14     ;0.014
      b1_01_coef dd  0      ;0 (since no Z term in numerator)
-     b2_01_coef dd  21      ;−0.02093
-     a1_01_coef dd  -1960   ;1.966
-     a2_01_coef dd  981      ;−0.9581
+     b2_01_coef dd 14      ;-0.014
+     a1_01_coef dd  -1945   ;	−1.9
+     a2_01_coef dd  	993      ;0.97
      b0_01_prod dd 0
      b1_01_prod dd 0
      b2_01_prod dd 0
@@ -51,7 +52,6 @@ section .data
      out_prev_2 resb 4
      in_prev_1 resb 4
      in_prev_2 resb 4
-
 
 section .text
     global _filter_proc, _word_to_dword, _dword_to_word, _cic16ord2
@@ -267,12 +267,12 @@ mainloop001:
   mov eax, [esi]         ;load x[n] (current sample)
   sal eax, 10             ;converting to fixed point Q22.10
   imul dword [b0_01_coef]    ;b)multiply by coef (x/128) * a0 , so result is  edx(high),eax(low)
-  sar eax, 10  ;scale down after multiplying
+  shrd eax, edx ,10; scale down to Q22.10
   mov [b0_01_prod], eax ;save low32bits product
   ;2)load previous x[n-2] input
   mov eax, [in_prev_2]
   imul dword [b2_01_coef]    ;b)multiply by coef (x/128) * a0 , so result is  edx(high),eax(low)
-  sar eax, 10  ;scale down after multiplying
+  shrd eax, edx ,10 ;scale down to Q22.10
   mov [b2_01_prod], eax ;save low32bits product
   ;2.1)shift a  sample x[n-1] to x[n-2]
   mov eax, [in_prev_1]
@@ -284,12 +284,12 @@ mainloop001:
   ;4)load output y[n-1] and multiply by a1
   mov eax, [out_prev_1]
   imul dword [a1_01_coef]    ; edx:eax = a1*y[n-1],  (eax is low, edx is high)
-  sar eax, 10  ;scale down after multiplying
+  shrd eax, edx ,10; scale down to Q22.10
   mov [a1_01_prod], eax      ;save result
   ;5)load output y[n-2] and multiply by a2
   mov eax, [out_prev_2]
   imul dword [a2_01_coef]    ; edx:eax = a1*y[n-1],  (eax is low, edx is high)
-  sar eax, 10  ;scale down after multiplying
+  shrd eax, edx ,10; scale down to Q22.10
   mov [a2_01_prod], eax      ;save result
   ;6)move Y[n-1] to Y[n-2]
   mov eax , [out_prev_1]
